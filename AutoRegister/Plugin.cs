@@ -47,8 +47,8 @@ namespace AutoRegister
         {
         }
 
+
         public static void Log(string msg,
-                        [CallerFilePath] string file = "",
                         [CallerMemberName] string member = "",
                         [CallerLineNumber] int line = 0)
         {
@@ -78,8 +78,8 @@ namespace AutoRegister
             {
                 try
                 {
-                    TShock.Players[args.Who].SendSuccessMessage($"New server-side character created successfully! Your password is \"{newPass}\".");
-                    TShock.Players[args.Who].SendSuccessMessage($"Contact an admin if you lose access to this account, or forget your password.");
+                    player.SendSuccessMessage($"New server-side character created successfully! Your password is \"{newPass}\".");
+                    player.SendSuccessMessage($"Contact an admin if you lose access to this account, or forget your password.");
                 }
                 catch { }
                 tmpPasswords.Remove(player.Name + player.UUID + player.IP);
@@ -97,12 +97,13 @@ namespace AutoRegister
                 var player = TShock.Players[args.Who];
 
                 // Get the user using a combo of their UUID/name, as this is what's required for uuid login to function it seems
-                var users = TShock.Users.GetUsers().Where(u => u.UUID == player.UUID && (u.Name == player.Name));
+                var users = TShock.Users.GetUsers().Where(u => u.UUID == player.UUID && u.Name == player.Name);
                 if (users.Count() == 0)
                 {
                     Log($"Creating new user for {player.Name}...");
+
+                    // If the user didn't exist, generate a password for them then create a new user based on their uuid/username
                     tmpPasswords[player.Name + player.UUID + player.IP] = Convert.ToBase64String(Guid.NewGuid().ToByteArray()).Substring(0, 10);
-                    // If the user didn't exist, automatically create a new user based on their uuid.
                     TShock.Users.AddUser(new User(
                         player.Name,
                         BCrypt.Net.BCrypt.HashPassword(tmpPasswords[player.Name + player.UUID + player.IP].Trim()),
