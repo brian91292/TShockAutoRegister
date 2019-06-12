@@ -65,14 +65,16 @@ namespace AutoRegister
             ServerApi.Hooks.NetGreetPlayer.Register(this, OnGreetPlayer, 420);
         }
 
-        private Dictionary<int, string> tmpPasswords = new Dictionary<int, string>();
+        private Dictionary<string, string> tmpPasswords = new Dictionary<string, string>();
         /// <summary>
         /// Tell the player their password if the account was newly generated
         /// </summary>
         /// <param name="args"></param>
         void OnGreetPlayer(GreetPlayerEventArgs args)
         {
-            if (tmpPasswords.TryGetValue(args.Who, out string newPass))
+            var player = TShock.Players[args.Who];
+            
+            if (tmpPasswords.TryGetValue(player.Name + player.UUID + player.IP, out string newPass))
             {
                 try
                 {
@@ -80,7 +82,7 @@ namespace AutoRegister
                     TShock.Players[args.Who].SendSuccessMessage($"Contact an admin if you lose access to this account, or forget your password.");
                 }
                 catch { }
-                tmpPasswords.Remove(args.Who);
+                tmpPasswords.Remove(player.Name + player.UUID + player.IP);
             }
         }
 
@@ -99,11 +101,11 @@ namespace AutoRegister
                 if (users.Count() == 0)
                 {
                     Log($"Creating new user for {player.Name}...");
-                    tmpPasswords[args.Who] = Convert.ToBase64String(Guid.NewGuid().ToByteArray()).Substring(0, 10);
+                    tmpPasswords[player.Name + player.UUID + player.IP] = Convert.ToBase64String(Guid.NewGuid().ToByteArray()).Substring(0, 10);
                     // If the user didn't exist, automatically create a new user based on their uuid.
                     TShock.Users.AddUser(new User(
                         player.Name,
-                        BCrypt.Net.BCrypt.HashPassword(tmpPasswords[args.Who].Trim()),
+                        BCrypt.Net.BCrypt.HashPassword(tmpPasswords[player.Name + player.UUID + player.IP].Trim()),
                         player.UUID,
                         TShock.Config.DefaultRegistrationGroupName,
                         DateTime.UtcNow.ToString("s"),
