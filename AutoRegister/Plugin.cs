@@ -27,7 +27,7 @@ namespace AutoRegister
         /// <summary>
         /// The version of the plugin in its current state.
         /// </summary>
-        public override Version Version => new Version(1, 0, 0);
+        public override Version Version => new Version(1, 0, 1);
 
         /// <summary>
         /// The author(s) of the plugin.
