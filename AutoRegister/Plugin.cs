@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using Terraria;
 using Terraria.Localization;
@@ -78,11 +76,16 @@ namespace AutoRegister
             {
                 try
                 {
-                    player.SendSuccessMessage($"New server-side character created successfully! Your password is \"{newPass}\".");
-                    player.SendSuccessMessage($"Contact an admin if you lose access to this account, or forget your password.");
+                    player.SendSuccessMessage($"Account \"{player.Name}\" has been registered.");
+                    player.SendSuccessMessage("Your password is " + newPass);
                 }
                 catch { }
                 tmpPasswords.Remove(player.Name + player.UUID + player.IP);
+            }
+            else if (!player.IsLoggedIn)
+            {
+                player.SendErrorMessage("Sorry, " + player.Name + " was already taken by another person.");
+                player.SendErrorMessage("Please try a different username.");
             }
         }
 
@@ -96,15 +99,10 @@ namespace AutoRegister
             {
                 var player = TShock.Players[args.Who];
 
-                // Get the user using a combo of their UUID/name, as this is what's required for uuid login to function it seems
-                var users = TShock.Users.GetUsers().Where(u => u.UUID == player.UUID && u.Name == player.Name);
-                if (users.Count() == 0)
+                if (TShock.UserAccounts.GetUserAccountByName(player.Name) == null && player.Name != TSServerPlayer.AccountName)
                 {
-                    Log($"Creating new user for {player.Name}...");
-
-                    // If the user didn't exist, generate a password for them then create a new user based on their uuid/username
                     tmpPasswords[player.Name + player.UUID + player.IP] = Convert.ToBase64String(Guid.NewGuid().ToByteArray()).Substring(0, 10);
-                    TShock.Users.AddUser(new User(
+                    TShock.UserAccounts.AddUserAccount(new UserAccount(
                         player.Name,
                         BCrypt.Net.BCrypt.HashPassword(tmpPasswords[player.Name + player.UUID + player.IP].Trim()),
                         player.UUID,
@@ -113,7 +111,7 @@ namespace AutoRegister
                         DateTime.UtcNow.ToString("s"),
                         ""));
 
-                    Log("Success!");
+                    TShock.Log.ConsoleInfo(player.Name + $" registered an account: \"{player.Name}\"");
                 }
             }
         }
