@@ -97,14 +97,14 @@ namespace AutoRegister
                 var player = TShock.Players[args.Who];
 
                 // Get the user using a combo of their UUID/name, as this is what's required for uuid login to function it seems
-                var users = TShock.Users.GetUsers().Where(u => u.UUID == player.UUID && u.Name == player.Name);
+                var users = TShock.UserAccounts.GetUserAccounts().Where(u => u.UUID == player.UUID && u.Name == player.Name);
                 if (users.Count() == 0)
                 {
                     Log($"Creating new user for {player.Name}...");
 
                     // If the user didn't exist, generate a password for them then create a new user based on their uuid/username
                     tmpPasswords[player.Name + player.UUID + player.IP] = Convert.ToBase64String(Guid.NewGuid().ToByteArray()).Substring(0, 10);
-                    TShock.Users.AddUser(new User(
+                    TShock.UserAccounts.AddUserAccount(new UserAccount(
                         player.Name,
                         BCrypt.Net.BCrypt.HashPassword(tmpPasswords[player.Name + player.UUID + player.IP].Trim()),
                         player.UUID,
