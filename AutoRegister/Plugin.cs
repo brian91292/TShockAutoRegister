@@ -25,7 +25,7 @@ namespace AutoRegister
         /// <summary>
         /// The version of the plugin in its current state.
         /// </summary>
-        public override Version Version => new Version(1, 0, 1);
+        public override Version Version => new Version(1, 1, 0);
 
         /// <summary>
         /// The author(s) of the plugin.
@@ -101,7 +101,9 @@ namespace AutoRegister
 
                 if (TShock.UserAccounts.GetUserAccountByName(player.Name) == null && player.Name != TSServerPlayer.AccountName)
                 {
-                    tmpPasswords[player.Name + player.UUID + player.IP] = Convert.ToBase64String(Guid.NewGuid().ToByteArray()).Substring(0, 10);
+                    tmpPasswords[player.Name + player.UUID + player.IP] =
+                        Convert.ToBase64String(Guid.NewGuid().ToByteArray()).Substring(0, 10).Replace('l', 'L')
+                            .Replace('1', '7').Replace('I', 'i').Replace('O', 'o').Replace('0', 'o');
                     TShock.UserAccounts.AddUserAccount(new UserAccount(
                         player.Name,
                         BCrypt.Net.BCrypt.HashPassword(tmpPasswords[player.Name + player.UUID + player.IP].Trim()),
