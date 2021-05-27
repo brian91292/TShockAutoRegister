@@ -25,17 +25,17 @@ namespace AutoRegister
         /// <summary>
         /// The version of the plugin in its current state.
         /// </summary>
-        public override Version Version => new Version(1, 1, 0);
+        public override Version Version => new Version(1, 2, 0);
 
         /// <summary>
         /// The author(s) of the plugin.
         /// </summary>
-        public override string Author => "brian91292";
+        public override string Author => "brian91292, maintained by moisterrific";
 
         /// <summary>
         /// A short, one-line, description of the plugin's purpose.
         /// </summary>
-        public override string Description => "A Tshock plugin to automatically register a new server-side character if one doesn't already exist for a user.";
+        public override string Description => "A TShock plugin to automatically register a user account for new players.";
 
         /// <summary>
         /// The plugin's constructor
@@ -77,7 +77,7 @@ namespace AutoRegister
                 try
                 {
                     player.SendSuccessMessage($"Account \"{player.Name}\" has been registered.");
-                    player.SendSuccessMessage("Your password is " + newPass);
+                    player.SendInfoMessage("Your password is " + newPass);
                 }
                 catch { }
                 tmpPasswords.Remove(player.Name + player.UUID + player.IP);
@@ -95,7 +95,7 @@ namespace AutoRegister
         /// <param name="args"></param>
         void OnServerJoin(JoinEventArgs args)
         {
-            if (TShock.ServerSideCharacterConfig.Enabled)
+            if (TShock.Config.Settings.RequireLogin)
             {
                 var player = TShock.Players[args.Who];
 
@@ -108,7 +108,7 @@ namespace AutoRegister
                         player.Name,
                         BCrypt.Net.BCrypt.HashPassword(tmpPasswords[player.Name + player.UUID + player.IP].Trim()),
                         player.UUID,
-                        TShock.Config.DefaultRegistrationGroupName,
+                        TShock.Config.Settings.DefaultRegistrationGroupName,
                         DateTime.UtcNow.ToString("s"),
                         DateTime.UtcNow.ToString("s"),
                         ""));
