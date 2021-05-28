@@ -1,4 +1,4 @@
-# Mod Info
+# Plugin Info
 AutoRegister is a plugin created to automatically register new players on TShock servers requiring login. 
 
 ## Overview
