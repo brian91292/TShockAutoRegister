@@ -1,15 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using Terraria;
-using Terraria.Localization;
 using TerrariaApi.Server;
 using TShockAPI;
 using TShockAPI.DB;
-using TShockAPI.Hooks;
-using static TShockAPI.GetDataHandlers;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
 
 namespace AutoRegister
 {
@@ -19,6 +16,7 @@ namespace AutoRegister
     [ApiVersion(2, 1)]
     public class Plugin : TerrariaPlugin
     {
+        #region Plugin Info
         /// <summary>
         /// The name of the plugin.
         /// </summary>
@@ -39,6 +37,9 @@ namespace AutoRegister
         /// </summary>
         public override string Description => "A TShock plugin to automatically register a user account for new players.";
 
+        #endregion
+
+        #region Hooks and stuff
         /// <summary>
         /// The plugin's constructor
         /// Set your plugin's order (optional) and any other constructor logic here
@@ -56,6 +57,7 @@ namespace AutoRegister
             ServerApi.Hooks.ServerJoin.Register(this, OnServerJoin);
             ServerApi.Hooks.NetGreetPlayer.Register(this, OnGreetPlayer, 420);
         }
+        #endregion
 
         private readonly Dictionary<string, string> tmpPasswords = new Dictionary<string, string>();
 
@@ -68,21 +70,37 @@ namespace AutoRegister
         async void OnGreetPlayer(GreetPlayerEventArgs args)
         {
             var player = TShock.Players[args.Who];
+            string cmd = TShock.Config.Settings.CommandSpecifier;
+            string red = TShockAPI.Utils.RedHighlight;
+            string green = TShockAPI.Utils.GreenHighlight;
+            string blue = TShockAPI.Utils.BoldHighlight;
+            // Need to put a slight delay otherwise the player might miss these important messages
+            // Because the messages always come before TShock MOTD
             await Task.Delay(1000);
-            if (tmpPasswords.TryGetValue(result, out string newPass))
-            {
+            if (tmpPasswords.TryGetValue(result, out string password))
+            { 
                 try
                 {
-                    player.SendSuccessMessage($"Account \"{player.Name}\" has been registered.");
-                    player.SendInfoMessage("Your password is " + newPass);
+                    player.SendMessage($"Your account \"{player.Name.Color(blue)}\" has been auto-registered.", Color.White);
+                    player.SendMessage($"Your randomly generated password is {password.Color(green)}", Color.White);
+                    player.SendMessage($"You may change this at any time by using {cmd}password {password.Color(green)} \"{"new password".Color(red)}\"", Color.White);
+                    if (TShock.Config.Settings.DisableUUIDLogin)
+                    {
+                        // send message instructing player to /login <password>
+                    }
                 }
-                catch { }
+                catch
+                {
+                    player.SendErrorMessage("Failed to retrieve your randomly generated password, please contact your server administrator.");
+                    TShock.Log.ConsoleError("AutoRegister returned an error.");
+                }
                 tmpPasswords.Remove(result);
             }
             else if (!player.IsLoggedIn)
             {
-                player.SendErrorMessage("Sorry, " + player.Name + " was already taken by another person.");
-                player.SendErrorMessage("Please try a different username.");
+                player.SendErrorMessage($"Your account \"{player.Name}\" could not be auto-registered!");
+                player.SendErrorMessage("This name has already been registered by another player.");
+                player.SendErrorMessage("Please try again using a different name.");
             }
         }
 
@@ -92,7 +110,7 @@ namespace AutoRegister
         /// <param name="args"></param>
         void OnServerJoin(JoinEventArgs args)
         {
-            if (TShock.Config.Settings.RequireLogin)
+            if (TShock.Config.Settings.RequireLogin || Main.ServerSideCharacter)
             {
                 var player = TShock.Players[args.Who];
 
@@ -110,8 +128,10 @@ namespace AutoRegister
                         DateTime.UtcNow.ToString("s"),
                         ""));
 
-                    TShock.Log.ConsoleInfo(player.Name + $" registered an account: \"{player.Name}\"");
+                    TShock.Log.ConsoleInfo($"Auto-registered an account for \"{player.Name}\" ({player.IP})");
                 }
+                else
+                    TShock.Log.ConsoleInfo($"Unable to auto-register \"{player.Name}\" ({player.IP}) because an account with this name already exists.");
             }
         }
 
