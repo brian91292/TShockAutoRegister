@@ -69,11 +69,16 @@ namespace AutoRegister
         /// <param name="args"></param>
         async void OnGreetPlayer(GreetPlayerEventArgs args)
         {
+            var tsConfig = TShock.Config.Settings;
             var player = TShock.Players[args.Who];
             string cmd = TShock.Config.Settings.CommandSpecifier;
             string red = TShockAPI.Utils.RedHighlight;
             string green = TShockAPI.Utils.GreenHighlight;
             string blue = TShockAPI.Utils.BoldHighlight;
+
+            if (tsConfig.DisableUUIDLogin && !tsConfig.DisableLoginBeforeJoin)
+                return;
+
             // Need to put a slight delay otherwise the player might miss these important messages
             // Because the messages always come before TShock MOTD
             await Task.Delay(1000);
@@ -83,11 +88,9 @@ namespace AutoRegister
                 {
                     player.SendMessage($"Your account \"{player.Name.Color(blue)}\" has been auto-registered.", Color.White);
                     player.SendMessage($"Your randomly generated password is {password.Color(green)}", Color.White);
-                    player.SendMessage($"You may change this at any time by using {cmd}password {password.Color(green)} \"{"new password".Color(red)}\"", Color.White);
                     if (TShock.Config.Settings.DisableUUIDLogin)
-                    {
-                        // send message instructing player to /login <password>
-                    }
+                        player.SendMessage($"Please sign in using {cmd}login {password.Color(green)}", Color.White);
+                    player.SendMessage($"You can change this at any time by using {cmd}password {password.Color(green)} \"{"new password".Color(red)}\"", Color.White);
                 }
                 catch
                 {
