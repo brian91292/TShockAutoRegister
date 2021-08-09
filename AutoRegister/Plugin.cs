@@ -110,7 +110,27 @@ namespace AutoRegister
         /// <param name="args"></param>
         void OnServerJoin(JoinEventArgs args)
         {
-            if (TShock.Config.Settings.RequireLogin || Main.ServerSideCharacter)
+            var tsConfig = TShock.Config.Settings;
+
+            // Problem: if DisableUUIDLogin = true AND DisableLoginBeforeJoin = false
+            // The player will be greeted with a screen asking for their account password before they can enter the server
+            // so they won't ever see their randomly generated password in the chat
+            // bruh
+            if (tsConfig.DisableUUIDLogin && !tsConfig.DisableLoginBeforeJoin)
+            {
+                TShock.Log.ConsoleError("AutoRegister will not work when DisableUUIDLogin is true AND DisableLoginBeforeJoin is false!");
+                return;
+            }
+
+            // Whether this plugin should be disabled if the server doesn't require login is up for debate
+            // but for now I'll leave it like this
+            if (!tsConfig.RequireLogin)
+            {
+                TShock.Log.ConsoleError("AutoRegister will not work when RequireLogin is set to false via config!");
+                return;
+            }
+
+            if (tsConfig.RequireLogin || Main.ServerSideCharacter)
             {
                 var player = TShock.Players[args.Who];
 
@@ -121,9 +141,9 @@ namespace AutoRegister
                             .Replace('1', '7').Replace('I', 'i').Replace('O', 'o').Replace('0', 'o');
                     TShock.UserAccounts.AddUserAccount(new UserAccount(
                         player.Name,
-                        BCrypt.Net.BCrypt.HashPassword(tmpPasswords[result].Trim(), TShock.Config.Settings.BCryptWorkFactor),
+                        BCrypt.Net.BCrypt.HashPassword(tmpPasswords[result].Trim(), tsConfig.BCryptWorkFactor),
                         player.UUID,
-                        TShock.Config.Settings.DefaultRegistrationGroupName,
+                        tsConfig.DefaultRegistrationGroupName,
                         DateTime.UtcNow.ToString("s"),
                         DateTime.UtcNow.ToString("s"),
                         ""));
@@ -135,6 +155,7 @@ namespace AutoRegister
             }
         }
 
+        // To-Do: switch to using a cryptographically secure pseudorandom number instead of this
         /// <summary>
         /// Generates a random alphanumeric string.
         /// </summary>
