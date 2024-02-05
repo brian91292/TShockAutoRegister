@@ -1,15 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.CompilerServices;
 using Terraria;
-using Terraria.Localization;
 using TerrariaApi.Server;
 using TShockAPI;
 using TShockAPI.DB;
-using TShockAPI.Hooks;
-using static TShockAPI.GetDataHandlers;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
 
 namespace AutoRegister
 {
@@ -19,6 +16,7 @@ namespace AutoRegister
     [ApiVersion(2, 1)]
     public class Plugin : TerrariaPlugin
     {
+        #region Plugin Info
         /// <summary>
         /// The name of the plugin.
         /// </summary>
@@ -27,32 +25,27 @@ namespace AutoRegister
         /// <summary>
         /// The version of the plugin in its current state.
         /// </summary>
-        public override Version Version => new Version(1, 0, 1);
+        public override Version Version => System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
 
         /// <summary>
         /// The author(s) of the plugin.
         /// </summary>
-        public override string Author => "brian91292";
+        public override string Author => "brian91292 & moisterrific";
 
         /// <summary>
         /// A short, one-line, description of the plugin's purpose.
         /// </summary>
-        public override string Description => "A Tshock plugin to automatically register a new server-side character if one doesn't already exist for a user.";
+        public override string Description => "A TShock plugin to automatically register a user account for new players.";
 
+        #endregion
+
+        #region Hooks and stuff
         /// <summary>
         /// The plugin's constructor
         /// Set your plugin's order (optional) and any other constructor logic here
         /// </summary>
         public Plugin(Main game) : base(game)
         {
-        }
-
-
-        public static void Log(string msg,
-                        [CallerMemberName] string member = "",
-                        [CallerLineNumber] int line = 0)
-        {
-            Console.WriteLine($"AutoRegister::{member}({line}): {msg}");
         }
 
         /// <summary>
@@ -64,25 +57,53 @@ namespace AutoRegister
             ServerApi.Hooks.ServerJoin.Register(this, OnServerJoin);
             ServerApi.Hooks.NetGreetPlayer.Register(this, OnGreetPlayer, 420);
         }
+        #endregion
 
-        private Dictionary<string, string> tmpPasswords = new Dictionary<string, string>();
+        private readonly Dictionary<string, string> tmpPasswords = new Dictionary<string, string>();
+
+        private static readonly string result = GenerateRandomAlphanumericString();
+
         /// <summary>
         /// Tell the player their password if the account was newly generated
         /// </summary>
         /// <param name="args"></param>
-        void OnGreetPlayer(GreetPlayerEventArgs args)
+        async void OnGreetPlayer(GreetPlayerEventArgs args)
         {
+            var tsConfig = TShock.Config.Settings;
             var player = TShock.Players[args.Who];
-            
-            if (tmpPasswords.TryGetValue(player.Name + player.UUID + player.IP, out string newPass))
-            {
+            string cmd = TShock.Config.Settings.CommandSpecifier;
+            string red = TShockAPI.Utils.RedHighlight;
+            string green = TShockAPI.Utils.GreenHighlight;
+            string blue = TShockAPI.Utils.BoldHighlight;
+
+            if (tsConfig.DisableUUIDLogin && !tsConfig.DisableLoginBeforeJoin)
+                return;
+
+            // Need to put a slight delay otherwise the player might miss these important messages
+            // Because the messages always come before TShock MOTD
+            await Task.Delay(1000);
+            if (tmpPasswords.TryGetValue(result, out string password))
+            { 
                 try
                 {
-                    player.SendSuccessMessage($"New server-side character created successfully! Your password is \"{newPass}\".");
-                    player.SendSuccessMessage($"Contact an admin if you lose access to this account, or forget your password.");
+                    player.SendMessage($"Your account \"{player.Name.Color(blue)}\" has been auto-registered.", Color.White);
+                    player.SendMessage($"Your randomly generated password is {password.Color(green)}", Color.White);
+                    if (TShock.Config.Settings.DisableUUIDLogin)
+                        player.SendMessage($"Please sign in using {cmd}login {password.Color(green)}", Color.White);
+                    player.SendMessage($"You can change this at any time by using {cmd}password {password.Color(green)} \"{"new password".Color(red)}\"", Color.White);
                 }
-                catch { }
-                tmpPasswords.Remove(player.Name + player.UUID + player.IP);
+                catch
+                {
+                    player.SendErrorMessage("Failed to retrieve your randomly generated password, please contact your server administrator.");
+                    TShock.Log.ConsoleError("AutoRegister returned an error.");
+                }
+                tmpPasswords.Remove(result);
+            }
+            else if (!player.IsLoggedIn)
+            {
+                player.SendErrorMessage($"Your account \"{player.Name}\" could not be auto-registered!");
+                player.SendErrorMessage("This name has already been registered by another player.");
+                player.SendErrorMessage("Please try again using a different name.");
             }
         }
 
@@ -92,30 +113,65 @@ namespace AutoRegister
         /// <param name="args"></param>
         void OnServerJoin(JoinEventArgs args)
         {
-            if (TShock.ServerSideCharacterConfig.Enabled)
+            var tsConfig = TShock.Config.Settings;
+
+            // Problem: if DisableUUIDLogin = true AND DisableLoginBeforeJoin = false
+            // The player will be greeted with a screen asking for their account password before they can enter the server
+            // so they won't ever see their randomly generated password in the chat
+            // bruh
+            if (tsConfig.DisableUUIDLogin && !tsConfig.DisableLoginBeforeJoin)
+            {
+                TShock.Log.ConsoleError("AutoRegister will not work when DisableUUIDLogin is true AND DisableLoginBeforeJoin is false!");
+                return;
+            }
+
+            // Whether this plugin should be disabled if the server doesn't require login is up for debate
+            // but for now I'll leave it like this
+            if (!tsConfig.RequireLogin)
+            {
+                TShock.Log.ConsoleError("AutoRegister will not work when RequireLogin is set to false via config!");
+                return;
+            }
+
+            if (tsConfig.RequireLogin || Main.ServerSideCharacter)
             {
                 var player = TShock.Players[args.Who];
 
-                // Get the user using a combo of their UUID/name, as this is what's required for uuid login to function it seems
-                var users = TShock.Users.GetUsers().Where(u => u.UUID == player.UUID && u.Name == player.Name);
-                if (users.Count() == 0)
+                if (TShock.UserAccounts.GetUserAccountByName(player.Name) == null && player.Name != TSServerPlayer.AccountName)
                 {
-                    Log($"Creating new user for {player.Name}...");
-
-                    // If the user didn't exist, generate a password for them then create a new user based on their uuid/username
-                    tmpPasswords[player.Name + player.UUID + player.IP] = Convert.ToBase64String(Guid.NewGuid().ToByteArray()).Substring(0, 10);
-                    TShock.Users.AddUser(new User(
+                    tmpPasswords[result] =
+                        Convert.ToBase64String(Guid.NewGuid().ToByteArray()).Substring(0, 10).Replace('l', 'L')
+                            .Replace('1', '7').Replace('I', 'i').Replace('O', 'o').Replace('0', 'o');
+                    TShock.UserAccounts.AddUserAccount(new UserAccount(
                         player.Name,
-                        BCrypt.Net.BCrypt.HashPassword(tmpPasswords[player.Name + player.UUID + player.IP].Trim()),
+                        BCrypt.Net.BCrypt.HashPassword(tmpPasswords[result].Trim(), tsConfig.BCryptWorkFactor),
                         player.UUID,
-                        TShock.Config.DefaultRegistrationGroupName,
+                        tsConfig.DefaultRegistrationGroupName,
                         DateTime.UtcNow.ToString("s"),
                         DateTime.UtcNow.ToString("s"),
                         ""));
 
-                    Log("Success!");
+                    TShock.Log.ConsoleInfo($"Auto-registered an account for \"{player.Name}\" ({player.IP})");
                 }
+                else
+                    TShock.Log.ConsoleInfo($"Unable to auto-register \"{player.Name}\" ({player.IP}) because an account with this name already exists.");
             }
+        }
+
+        // To-Do: switch to using a cryptographically secure pseudorandom number instead of this
+        /// <summary>
+        /// Generates a random alphanumeric string.
+        /// </summary>
+        /// <param name="length">The desired length of the string</param>
+        /// <returns>The string which has been generated</returns>
+        public static string GenerateRandomAlphanumericString(int length = 10)
+        {
+            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+            var random = new Random();
+            var randomString = new string(Enumerable.Repeat(chars, length)
+                                                    .Select(s => s[random.Next(s.Length)]).ToArray());
+            return randomString;
         }
 
         /// <summary>
